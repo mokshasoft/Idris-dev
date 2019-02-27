@@ -61,4 +61,9 @@ Msg* idris_recvMessage(struct VM* vm);
 // block until there is a message in the queue
 Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender);
 
+// Set up key for thread-local data - called once from idris_main
+void init_threadkeys(void);
+// Initialise thread-local data for this VM
+void init_threaddata(struct VM *vm);
+
 #endif

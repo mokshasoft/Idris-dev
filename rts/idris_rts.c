@@ -60,8 +60,10 @@ VM* init_vm(int stack_size, size_t heap_size,
 
 VM* idris_vm(void) {
     VM* vm = init_vm(4096000, 4096000, 1);
+#ifdef HAS_PTHREAD
     init_threadkeys();
     init_threaddata(vm);
+#endif
     init_gmpalloc();
     init_nullaries();
     init_signals();
@@ -79,25 +81,6 @@ VM* get_vm(void) {
 
 void close_vm(VM* vm) {
     terminate(vm);
-}
-
-#ifdef HAS_PTHREAD
-void create_key(void) {
-    pthread_key_create(&vm_key, free_key);
-}
-#endif
-
-void init_threadkeys(void) {
-#ifdef HAS_PTHREAD
-    static pthread_once_t key_once = PTHREAD_ONCE_INIT;
-    pthread_once(&key_once, create_key);
-#endif
-}
-
-void init_threaddata(VM *vm) {
-#ifdef HAS_PTHREAD
-    pthread_setspecific(vm_key, vm);
-#endif
 }
 
 void init_signals(void) {
