@@ -21,6 +21,11 @@ ifndef IDRIS_GMP
 	HDRS += mini-gmp.h
 endif
 
+ifdef HAS_PTHREAD
+	OBJS += idris_pthread.o
+	HDRS += idris_pthread.h
+endif
+
 LIBTARGET = libidris_rts.a
 
 build: $(LIBTARGET) $(DYLIBTARGET)
