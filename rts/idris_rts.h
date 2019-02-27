@@ -117,6 +117,7 @@ typedef struct CDataC {
 
 struct VM;
 
+#ifdef HAS_PTHREAD
 struct Msg_t {
     struct VM* sender;
     // An identifier to say which conversation this message is part of.
@@ -126,6 +127,24 @@ struct Msg_t {
 };
 
 typedef struct Msg_t Msg;
+
+struct VMPthread {
+    pthread_mutex_t inbox_lock;
+    pthread_mutex_t inbox_block;
+    pthread_mutex_t alloc_lock;
+    pthread_cond_t inbox_waiting;
+
+    Msg* inbox; // Block of memory for storing messages
+    Msg* inbox_end; // End of block of memory
+    int inbox_nextid; // Next channel id
+    Msg* inbox_write; // Location of next message to write
+
+    int processes; // Number of child processes
+    int max_threads; // maximum number of threads to run in parallel
+};
+
+typedef struct VMPthread VMPthread;
+#endif // HAS_PTHREAD
 
 struct VM {
     int active; // 0 if no longer running; keep for message passing
@@ -140,18 +159,7 @@ struct VM {
     CHeap c_heap;
     Heap heap;
 #ifdef HAS_PTHREAD
-    pthread_mutex_t inbox_lock;
-    pthread_mutex_t inbox_block;
-    pthread_mutex_t alloc_lock;
-    pthread_cond_t inbox_waiting;
-
-    Msg* inbox; // Block of memory for storing messages
-    Msg* inbox_end; // End of block of memory
-    int inbox_nextid; // Next channel id
-    Msg* inbox_write; // Location of next message to write
-
-    int processes; // Number of child processes
-    int max_threads; // maximum number of threads to run in parallel
+    VMPthread pthread;
 #endif
     Stats stats;
 
