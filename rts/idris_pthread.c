@@ -34,16 +34,16 @@ void init_vm_pthread
 }
 
 typedef struct {
-    VM* vm; // thread's VM
-    VM* callvm; // calling thread's VM
+    struct VM* vm; // thread's VM
+    struct VM* callvm; // calling thread's VM
     func fn;
     VAL arg;
 } ThreadData;
 
 void* runThread(void* arg) {
     ThreadData* td = (ThreadData*)arg;
-    VM* vm = td->vm;
-    VM* callvm = td->callvm;
+    struct VM* vm = td->vm;
+    struct VM* callvm = td->callvm;
 
     init_threaddata(vm);
 
@@ -61,8 +61,8 @@ void* runThread(void* arg) {
     return NULL;
 }
 
-void* vmThread(VM* callvm, func f, VAL arg) {
-    VM* vm = init_vm(callvm->stack_max - callvm->valstack, callvm->heap.size,
+void* vmThread(struct VM* callvm, func f, VAL arg) {
+    struct VM* vm = init_vm(callvm->stack_max - callvm->valstack, callvm->heap.size,
                      callvm->pthread.max_threads);
     vm->pthread.processes=1; // since it can send and receive messages
     pthread_t t;
@@ -91,15 +91,15 @@ void* vmThread(VM* callvm, func f, VAL arg) {
     }
 }
 
-void* idris_stopThread(VM* vm) {
+void* idris_stopThread(struct VM* vm) {
     close_vm(vm);
     pthread_exit(NULL);
     return NULL;
 }
 
-static VAL doCopyTo(VM* vm, VAL x);
+static VAL doCopyTo(struct VM* vm, VAL x);
 
-static void copyArray(VM* vm, VAL * dst, VAL * src, size_t len) {
+static void copyArray(struct VM* vm, VAL * dst, VAL * src, size_t len) {
     size_t i;
     for(i = 0; i < len; ++i)
       dst[i] = doCopyTo(vm, src[i]);
@@ -108,7 +108,7 @@ static void copyArray(VM* vm, VAL * dst, VAL * src, size_t len) {
 
 // VM is assumed to be a different vm from the one x lives on
 
-static VAL doCopyTo(VM* vm, VAL x) {
+static VAL doCopyTo(struct VM* vm, VAL x) {
     int ar;
     VAL cl;
     if (x==NULL) {
@@ -158,13 +158,13 @@ static VAL doCopyTo(VM* vm, VAL x) {
     return cl;
 }
 
-VAL copyTo(VM* vm, VAL x) {
+VAL copyTo(struct VM* vm, VAL x) {
     VAL ret = doCopyTo(vm, x);
     return ret;
 }
 
 // Add a message to another VM's message queue
-int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg) {
+int idris_sendMessage(struct VM* sender, int channel_id, struct VM* dest, VAL msg) {
     // FIXME: If GC kicks in in the middle of the copy, we're in trouble.
     // Probably best check there is enough room in advance. (How?)
 
@@ -223,11 +223,11 @@ int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg) {
     return channel_id >> 1;
 }
 
-VM* idris_checkMessages(VM* vm) {
+struct VM* idris_checkMessages(struct VM* vm) {
     return idris_checkMessagesFrom(vm, 0, NULL);
 }
 
-Msg* idris_checkInitMessages(VM* vm) {
+Msg* idris_checkInitMessages(struct VM* vm) {
     Msg* msg;
 
     for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_end && msg->msg != NULL; ++msg) {
@@ -238,7 +238,7 @@ Msg* idris_checkInitMessages(VM* vm) {
     return 0;
 }
 
-VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender) {
+struct VM* idris_checkMessagesFrom(struct VM* vm, int channel_id, struct VM* sender) {
     Msg* msg;
 
     for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_end && msg->msg != NULL; ++msg) {
@@ -251,8 +251,8 @@ VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender) {
     return 0;
 }
 
-VM* idris_checkMessagesTimeout(VM* vm, int delay) {
-    VM* sender = idris_checkMessagesFrom(vm, 0, NULL);
+struct VM* idris_checkMessagesTimeout(struct VM* vm, int delay) {
+    struct VM* sender = idris_checkMessagesFrom(vm, 0, NULL);
     if (sender != NULL) {
         return sender;
     }
@@ -274,7 +274,7 @@ VM* idris_checkMessagesTimeout(VM* vm, int delay) {
 }
 
 
-Msg* idris_getMessageFrom(VM* vm, int channel_id, VM* sender) {
+Msg* idris_getMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
     Msg* msg;
 
     for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_write; ++msg) {
@@ -288,11 +288,11 @@ Msg* idris_getMessageFrom(VM* vm, int channel_id, VM* sender) {
 }
 
 // block until there is a message in the queue
-Msg* idris_recvMessage(VM* vm) {
+Msg* idris_recvMessage(struct VM* vm) {
     return idris_recvMessageFrom(vm, 0, NULL);
 }
 
-Msg* idris_recvMessageFrom(VM* vm, int channel_id, VM* sender) {
+Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
     Msg* msg;
     Msg* ret;
 
