@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include "idris_rts.h"
 
+struct VM;
+
 struct Msg_t {
     struct VM* sender;
     // An identifier to say which conversation this message is part of.
@@ -36,27 +38,27 @@ void init_vm_pthread
     , int max_threads // not implemented yet
     );
 
-void* vmThread(VM* callvm, func f, VAL arg);
-void* idris_stopThread(VM* vm);
+void* vmThread(struct VM* callvm, func f, VAL arg);
+void* idris_stopThread(struct VM* vm);
 
 // Copy a structure to another vm's heap
-VAL copyTo(VM* newVM, VAL x);
+VAL copyTo(struct VM* newVM, VAL x);
 
 // Add a message to another VM's message queue
-int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg);
+int idris_sendMessage(struct VM* sender, int channel_id, struct VM* dest, VAL msg);
 // Check whether there are any messages in the queue and return PID of
 // sender if so (null if not)
-VM* idris_checkMessages(VM* vm);
+struct VM* idris_checkMessages(struct VM* vm);
 // Check whether there are any messages which are initiating a conversation
 // in the queue and return the message if so (without removing it)
-Msg* idris_checkInitMessages(VM* vm);
+Msg* idris_checkInitMessages(struct VM* vm);
 // Check whether there are any messages in the queue
-VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender);
+struct VM* idris_checkMessagesFrom(struct VM* vm, int channel_id, struct VM* sender);
 // Check whether there are any messages in the queue, and wait if not
-VM* idris_checkMessagesTimeout(VM* vm, int timeout);
+struct VM* idris_checkMessagesTimeout(struct VM* vm, int timeout);
 // block until there is a message in the queue
-Msg* idris_recvMessage(VM* vm);
+Msg* idris_recvMessage(struct VM* vm);
 // block until there is a message in the queue
-Msg* idris_recvMessageFrom(VM* vm, int channel_id, VM* sender);
+Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender);
 
 #endif

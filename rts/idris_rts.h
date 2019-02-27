@@ -110,6 +110,12 @@ typedef struct CDataC {
     CHeapItem * item;
 } CDataC;
 
+struct VM;
+
+// Functions all take a pointer to their VM, and previous stack base,
+// and return nothing.
+typedef void*(*func)(struct VM*, VAL*);
+
 #ifdef HAS_PTHREAD
 #include "idris_pthread.h"
 #endif
@@ -185,10 +191,6 @@ void close_vm(VM* vm);
 
 // Set up key for thread-local data - called once from idris_main
 void init_threadkeys(void);
-
-// Functions all take a pointer to their VM, and previous stack base,
-// and return nothing.
-typedef void*(*func)(VM*, VAL*);
 
 // Register access
 
