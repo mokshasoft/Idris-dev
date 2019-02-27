@@ -4,11 +4,6 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
-#ifdef HAS_PTHREAD
-#include <string.h>
-#include <stdarg.h>
-#include <pthread.h>
-#endif
 
 #include "idris_heap.h"
 #include "idris_stats.h"
@@ -115,36 +110,9 @@ typedef struct CDataC {
     CHeapItem * item;
 } CDataC;
 
-struct VM;
-
 #ifdef HAS_PTHREAD
-struct Msg_t {
-    struct VM* sender;
-    // An identifier to say which conversation this message is part of.
-    // Lowest bit is set if the id is the first message in a conversation.
-    int channel_id;
-    VAL msg;
-};
-
-typedef struct Msg_t Msg;
-
-struct VMPthread {
-    pthread_mutex_t inbox_lock;
-    pthread_mutex_t inbox_block;
-    pthread_mutex_t alloc_lock;
-    pthread_cond_t inbox_waiting;
-
-    Msg* inbox; // Block of memory for storing messages
-    Msg* inbox_end; // End of block of memory
-    int inbox_nextid; // Next channel id
-    Msg* inbox_write; // Location of next message to write
-
-    int processes; // Number of child processes
-    int max_threads; // maximum number of threads to run in parallel
-};
-
-typedef struct VMPthread VMPthread;
-#endif // HAS_PTHREAD
+#include "idris_pthread.h"
+#endif
 
 struct VM {
     int active; // 0 if no longer running; keep for message passing
