@@ -347,3 +347,16 @@ Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
     }
     return ret;
 }
+
+void create_key(void) {
+    pthread_key_create(&vm_key, free_key);
+}
+
+void init_threadkeys(void) {
+    static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+    pthread_once(&key_once, create_key);
+}
+
+void init_threaddata(struct VM *vm) {
+    pthread_setspecific(vm_key, vm);
+}

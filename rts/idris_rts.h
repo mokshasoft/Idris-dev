@@ -179,8 +179,6 @@ VM* init_vm(int stack_size, size_t heap_size,
 
 // Get the VM for the current thread
 VM* get_vm(void);
-// Initialise thread-local data for this VM
-void init_threaddata(VM *vm);
 // Clean up a VM once it's no longer needed
 Stats terminate(VM* vm);
 
@@ -188,9 +186,6 @@ Stats terminate(VM* vm);
 // calling Idris from C)
 VM* idris_vm(void);
 void close_vm(VM* vm);
-
-// Set up key for thread-local data - called once from idris_main
-void init_threadkeys(void);
 
 // Register access
 
