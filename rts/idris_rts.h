@@ -371,29 +371,6 @@ void init_nullaries(void);
 
 void init_signals(void);
 
-void* vmThread(VM* callvm, func f, VAL arg);
-void* idris_stopThread(VM* vm);
-
-// Copy a structure to another vm's heap
-VAL copyTo(VM* newVM, VAL x);
-
-// Add a message to another VM's message queue
-int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg);
-// Check whether there are any messages in the queue and return PID of
-// sender if so (null if not)
-VM* idris_checkMessages(VM* vm);
-// Check whether there are any messages which are initiating a conversation
-// in the queue and return the message if so (without removing it)
-Msg* idris_checkInitMessages(VM* vm);
-// Check whether there are any messages in the queue
-VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender);
-// Check whether there are any messages in the queue, and wait if not
-VM* idris_checkMessagesTimeout(VM* vm, int timeout);
-// block until there is a message in the queue
-Msg* idris_recvMessage(VM* vm);
-// block until there is a message in the queue
-Msg* idris_recvMessageFrom(VM* vm, int channel_id, VM* sender);
-
 // Query/free structure used to return message data (recvMessage will malloc,
 // so needs an explicit free)
 VAL idris_getMsg(Msg* msg);
