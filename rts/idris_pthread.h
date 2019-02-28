@@ -2,9 +2,7 @@
 #define _IDRIS_PTHREAD_H
 
 #include <pthread.h>
-#include "idris_rts.h"
-
-struct VM;
+#include "idris_rts_types.h"
 
 struct Msg_t {
     struct VM* sender;
