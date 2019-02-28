@@ -1,5 +1,5 @@
-#ifndef _IDRIS_RTS_PTHREAD_H
-#define _IDRIS_RTS_PTHREAD_H
+#ifndef _IDRIS_PTHREAD_H
+#define _IDRIS_PTHREAD_H
 
 #include <pthread.h>
 #include "idris_rts.h"
