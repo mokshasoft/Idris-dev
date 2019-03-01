@@ -22,8 +22,11 @@ ifndef IDRIS_GMP
 endif
 
 ifdef HAS_PTHREAD
-	OBJS += idris_pthread.o
-	HDRS += idris_pthread.h
+    OBJS += idris_pthread.o
+    HDRS += idris_pthread.h
+else
+    OBJS += idris_single_threaded.o
+    HDRS += idris_single_threaded.h
 endif
 
 LIBTARGET = libidris_rts.a
