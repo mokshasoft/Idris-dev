@@ -40,10 +40,10 @@ struct VMPthread_t {
 
 typedef struct VMPthread_t VMPthread;
 
-void init_vm_pthread
-    ( VMPthread *pt
-    , int max_threads // not implemented yet
+VMPthread* alloc_vm_pthread
+    ( int max_threads // not implemented yet
     );
+void free_vm_pthread(VMPthread *pt);
 
 struct VM* get_vm_impl(void);
 

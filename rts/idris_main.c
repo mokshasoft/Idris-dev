@@ -3,9 +3,6 @@
 #include "idris_rts_types.h"
 #include "idris_rts.h"
 #include "idris_stats.h"
-#ifdef HAS_PTHREAD
-#include "idris_pthread.h"
-#endif
 
 void* _idris__123_runMain_95_0_125_(VM* vm, VAL* oldbase);
 
