@@ -234,13 +234,6 @@ void init_nullaries(void);
 
 void init_signals(void);
 
-// Query/free structure used to return message data (recvMessage will malloc,
-// so needs an explicit free)
-VAL idris_getMsg(Msg* msg);
-VM* idris_getSender(Msg* msg);
-int idris_getChannel(Msg* msg);
-void idris_freeMsg(Msg* msg);
-
 void idris_trace(VM* vm, const char* func, int line);
 void dumpVal(VAL r);
 void dumpStack(VM* vm);

@@ -46,7 +46,7 @@ VM* init_vm(int stack_size, size_t heap_size,
 #ifdef HAS_PTHREAD
     vm->pthread = alloc_vm_pthread(vm, max_threads);
 #else
-    global_vm = vm;
+    init_vm_single(vm);
 #endif
     STATS_LEAVE_INIT(vm->stats)
     return vm;
@@ -671,22 +671,6 @@ VAL idris_systemInfo(VM* vm, VAL index) {
             return MKSTR(vm, IDRIS_TARGET_TRIPLE);
     }
     return MKSTR(vm, "");
-}
-
-VAL idris_getMsg(Msg* msg) {
-    return msg->msg;
-}
-
-VM* idris_getSender(Msg* msg) {
-    return msg->sender;
-}
-
-int idris_getChannel(Msg* msg) {
-    return msg->channel_id >> 1;
-}
-
-void idris_freeMsg(Msg* msg) {
-    free(msg);
 }
 
 int idris_errno(void) {

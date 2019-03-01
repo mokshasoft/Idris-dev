@@ -1,6 +1,14 @@
 #include "idris_single_threaded.h"
+#include "idris_gc.h"
+
+#include <assert.h>
 
 static VM* global_vm;
+
+void init_vm_single(VM * vm)
+{
+    global_vm = vm;
+}
 
 VM* get_vm_impl(void)
 {
@@ -33,6 +41,6 @@ void* iallocate_impl(VM * vm, size_t isize, int outerlock) {
             vm->heap.size += size;
         }
         idris_gc(vm);
-        return iallocate(vm, size, outerlock);
+        return iallocate_impl(vm, size, outerlock);
     }
 }
