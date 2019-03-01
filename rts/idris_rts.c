@@ -44,7 +44,7 @@ VM* init_vm(int stack_size, size_t heap_size,
     vm->ret = NULL;
     vm->reg1 = NULL;
 #ifdef HAS_PTHREAD
-    init_vm_pthread(&(vm->pthread), max_threads);
+    alloc_vm_pthread(&(vm->pthread), max_threads);
 #else
     global_vm = vm;
 #endif
@@ -82,13 +82,11 @@ void init_signals(void) {
 Stats terminate(VM* vm) {
     Stats stats = vm->stats;
     STATS_ENTER_EXIT(stats)
-#ifdef HAS_PTHREAD
-    free(vm->pthread.inbox);
-#endif
     free(vm->valstack);
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
 #ifdef HAS_PTHREAD
+    free(vm->pthread.inbox);
     pthread_mutex_destroy(&(vm->pthread.inbox_lock));
     pthread_mutex_destroy(&(vm->pthread.inbox_block));
     pthread_cond_destroy(&(vm->pthread.inbox_waiting));
