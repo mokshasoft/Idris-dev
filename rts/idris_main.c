@@ -54,10 +54,6 @@ int main(int argc, char **argv) {
     __idris_argv = argv;
 
     VM* vm = init_vm(opts.max_stack_size, opts.init_heap_size, 1);
-#ifdef HAS_PTHREAD
-    init_threadkeys();
-    init_threaddata(vm);
-#endif
     init_gmpalloc();
 
     init_nullaries();

@@ -15,12 +15,28 @@ void free_key(void *vvm) {
     // nothing to free, we just used the VM pointer which is freed elsewhere
 }
 
+void create_key(void) {
+    pthread_key_create(&vm_key, free_key);
+}
+
+// Set up key for thread-local data - called once from idris_main
+void init_threadkeys(void) {
+    static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+    pthread_once(&key_once, create_key);
+}
+
+// Initialise thread-local data for this VM
+void init_threaddata(struct VM *vm) {
+    pthread_setspecific(vm_key, vm);
+}
+
 VM* get_vm_impl(void) {
     return pthread_getspecific(vm_key);
 }
 
 VMPthread* alloc_vm_pthread
-    ( int max_threads // not implemented yet
+    ( VM *vm
+    , int max_threads // not implemented yet
     )
 {
     VMPthread *pt = malloc(sizeof(VMPthread));
@@ -44,6 +60,9 @@ VMPthread* alloc_vm_pthread
     pthread_mutex_init(&(pt->inbox_block), NULL);
     pthread_mutex_init(&(pt->alloc_lock), &rec_attr);
     pthread_cond_init(&(pt->inbox_waiting), NULL);
+
+    init_threadkeys();
+    init_threaddata(vm);
 
     pt->max_threads = max_threads;
     pt->processes = 0;
@@ -373,19 +392,6 @@ Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
         exit(-1);
     }
     return ret;
-}
-
-void create_key(void) {
-    pthread_key_create(&vm_key, free_key);
-}
-
-void init_threadkeys(void) {
-    static pthread_once_t key_once = PTHREAD_ONCE_INIT;
-    pthread_once(&key_once, create_key);
-}
-
-void init_threaddata(struct VM *vm) {
-    pthread_setspecific(vm_key, vm);
 }
 
 void idris_requireAlloc_impl(struct VM * vm, size_t size) {

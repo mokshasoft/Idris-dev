@@ -44,7 +44,7 @@ VM* init_vm(int stack_size, size_t heap_size,
     vm->ret = NULL;
     vm->reg1 = NULL;
 #ifdef HAS_PTHREAD
-    vm->pthread = alloc_vm_pthread(max_threads);
+    vm->pthread = alloc_vm_pthread(vm, max_threads);
 #else
     global_vm = vm;
 #endif
@@ -54,10 +54,6 @@ VM* init_vm(int stack_size, size_t heap_size,
 
 VM* idris_vm(void) {
     VM* vm = init_vm(4096000, 4096000, 1);
-#ifdef HAS_PTHREAD
-    init_threadkeys();
-    init_threaddata(vm);
-#endif
     init_gmpalloc();
     init_nullaries();
     init_signals();
