@@ -9,9 +9,6 @@
 #include "idris_rts_types.h"
 #include "idris_heap.h"
 #include "idris_stats.h"
-#ifdef HAS_PTHREAD
-#include "idris_pthread.h"
-#endif
 
 /* C data interface: allocation on the C heap.
  *
