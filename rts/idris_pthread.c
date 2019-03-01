@@ -51,6 +51,12 @@ VMPthread* alloc_vm_pthread
 
 void free_vm_pthread(VMPthread *pt)
 {
+    free(pt->inbox);
+    pthread_mutex_destroy(&(pt->inbox_lock));
+    pthread_mutex_destroy(&(pt->inbox_block));
+    pthread_mutex_destroy(&(pt->alloc_lock));
+    pthread_cond_destroy(&(pt->inbox_waiting));
+    free(pt);
 }
 
 typedef struct {

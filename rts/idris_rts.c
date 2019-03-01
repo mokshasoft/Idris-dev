@@ -86,10 +86,7 @@ Stats terminate(VM* vm) {
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
 #ifdef HAS_PTHREAD
-    free(vm->pthread->inbox);
-    pthread_mutex_destroy(&(vm->pthread->inbox_lock));
-    pthread_mutex_destroy(&(vm->pthread->inbox_block));
-    pthread_cond_destroy(&(vm->pthread->inbox_waiting));
+    free_vm_pthread(vm->pthread);
 #endif
     // free(vm);
     // Set the VM as inactive, so that if any message gets sent to it
