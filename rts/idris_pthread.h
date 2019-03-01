@@ -1,7 +1,12 @@
 #ifndef _IDRIS_PTHREAD_H
 #define _IDRIS_PTHREAD_H
 
+#include <stdio.h>
 #include <pthread.h>
+#include <malloc.h>
+#include <stdlib.h>
+#include <assert.h>
+
 #include "idris_rts_types.h"
 
 struct VM;
@@ -39,6 +44,8 @@ void init_vm_pthread
     ( VMPthread *pt
     , int max_threads // not implemented yet
     );
+
+struct VM* get_vm_impl(void);
 
 void* vmThread(struct VM* callvm, func f, VAL arg);
 void* idris_stopThread(struct VM* vm);

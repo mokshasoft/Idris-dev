@@ -1,7 +1,22 @@
 #include "idris_pthread.h"
+#include "idris_rts.h"
 
 #include <string.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <malloc.h>
+#include <stdlib.h>
+#include <assert.h>
+
+static pthread_key_t vm_key;
+
+void free_key(void *vvm) {
+    // nothing to free, we just used the VM pointer which is freed elsewhere
+}
+
+VM* get_vm_impl(void) {
+    return pthread_getspecific(vm_key);
+}
 
 void init_vm_pthread
     ( VMPthread *pt

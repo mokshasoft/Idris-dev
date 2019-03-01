@@ -7,6 +7,11 @@
 #include "idris_utf8.h"
 #include "idris_bitstring.h"
 #include "getline.h"
+#ifdef HAS_PTHREAD
+#include "idris_pthread.h"
+#else
+#include "idris_single_threaded.h"
+#endif
 
 #define STATIC_ASSERT(COND,MSG) typedef char static_assertion_##MSG[(COND)?1:-1]
 
@@ -15,17 +20,6 @@ STATIC_ASSERT(sizeof(Hdr) == 8, condSizeOfHdr);
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__)
 #include <signal.h>
 #endif
-
-
-#ifdef HAS_PTHREAD
-static pthread_key_t vm_key;
-#else
-static VM* global_vm;
-#endif
-
-void free_key(void *vvm) {
-    // nothing to free, we just used the VM pointer which is freed elsewhere
-}
 
 VM* init_vm(int stack_size, size_t heap_size,
             int max_threads // not implemented yet
@@ -72,11 +66,7 @@ VM* idris_vm(void) {
 }
 
 VM* get_vm(void) {
-#ifdef HAS_PTHREAD
-    return pthread_getspecific(vm_key);
-#else
-    return global_vm;
-#endif
+    return get_vm_impl();
 }
 
 void close_vm(VM* vm) {
