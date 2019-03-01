@@ -78,7 +78,7 @@ void* iallocate_impl(struct VM * vm, size_t isize, int outerlock);
 // Query/free structure used to return message data (recvMessage will malloc,
 // so needs an explicit free)
 VAL idris_getMsg(Msg* msg);
-VM* idris_getSender(Msg* msg);
+struct VM* idris_getSender(Msg* msg);
 int idris_getChannel(Msg* msg);
 void idris_freeMsg(Msg* msg);
 
