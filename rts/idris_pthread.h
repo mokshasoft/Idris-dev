@@ -41,7 +41,8 @@ struct VMPthread_t {
 typedef struct VMPthread_t VMPthread;
 
 VMPthread* alloc_vm_pthread
-    ( int max_threads // not implemented yet
+    ( struct VM *vm
+    , int max_threads // not implemented yet
     );
 void free_vm_pthread(VMPthread *pt);
 
@@ -69,11 +70,6 @@ struct VM* idris_checkMessagesTimeout(struct VM* vm, int timeout);
 Msg* idris_recvMessage(struct VM* vm);
 // block until there is a message in the queue
 Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender);
-
-// Set up key for thread-local data - called once from idris_main
-void init_threadkeys(void);
-// Initialise thread-local data for this VM
-void init_threaddata(struct VM *vm);
 
 void idris_requireAlloc_impl(struct VM * vm, size_t size);
 void idris_doneAlloc_impl(struct VM * vm);
