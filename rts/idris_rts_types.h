@@ -1,6 +1,14 @@
 #ifndef _IDRIS_RTS_TYPES_H
 #define _IDRIS_RTS_TYPES_H
 
+#include <stdint.h>
+
+#include "idris_heap.h"
+#include "idris_stats.h"
+#ifdef HAS_PTHREAD
+#include "idris_pthread.h"
+#endif
+
 #ifndef EXIT_SUCCESS
 #define EXIT_SUCCESS 0
 #endif
@@ -115,7 +123,7 @@ struct VM {
     CHeap c_heap;
     Heap heap;
 #ifdef HAS_PTHREAD
-    VMPthread pthread;
+    struct VMPthread_t pthread;
 #endif
     Stats stats;
 

@@ -4,6 +4,10 @@
 #include <pthread.h>
 #include "idris_rts_types.h"
 
+struct VM;
+typedef struct Val * VAL;
+typedef void*(*func)(struct VM*, VAL*);
+
 struct Msg_t {
     struct VM* sender;
     // An identifier to say which conversation this message is part of.
@@ -14,7 +18,7 @@ struct Msg_t {
 
 typedef struct Msg_t Msg;
 
-struct VMPthread {
+struct VMPthread_t {
     pthread_mutex_t inbox_lock;
     pthread_mutex_t inbox_block;
     pthread_mutex_t alloc_lock;
@@ -29,7 +33,7 @@ struct VMPthread {
     int max_threads; // maximum number of threads to run in parallel
 };
 
-typedef struct VMPthread VMPthread;
+typedef struct VMPthread_t VMPthread;
 
 void init_vm_pthread
     ( VMPthread *pt
