@@ -73,5 +73,6 @@ Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender);
 
 void idris_requireAlloc_impl(struct VM * vm, size_t size);
 void idris_doneAlloc_impl(struct VM * vm);
+void* iallocate_impl(struct VM * vm, size_t isize, int outerlock);
 
 #endif

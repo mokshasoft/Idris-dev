@@ -15,3 +15,24 @@ void idris_requireAlloc_impl(VM * vm, size_t size) {
 
 void idris_doneAlloc_impl(VM * vm) {
 }
+
+void* iallocate_impl(VM * vm, size_t isize, int outerlock) {
+    size_t size = aligned(isize);
+
+    if (vm->heap.next + size < vm->heap.end) {
+        STATS_ALLOC(vm->stats, size)
+        char* ptr = vm->heap.next;
+        vm->heap.next += size;
+        assert(vm->heap.next <= vm->heap.end);
+        ((Hdr*)ptr)->sz = isize;
+        return (void*)ptr;
+    } else {
+        // If we're trying to allocate something bigger than the heap,
+        // grow the heap here so that the new heap is big enough.
+        if (size > vm->heap.size) {
+            vm->heap.size += size;
+        }
+        idris_gc(vm);
+        return iallocate(vm, size, outerlock);
+    }
+}
