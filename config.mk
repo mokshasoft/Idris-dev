@@ -16,6 +16,9 @@ CABAL           :=cabal
 # Any flags defined here which alter the RTS API must also be added to src/IRTS/CodegenC.hs
 CFLAGS          :=-O2 -Wall -std=c99 -pipe -fdata-sections -ffunction-sections -D_POSIX_C_SOURCE=200809L -DHAS_PTHREAD -DIDRIS_ENABLE_STATS $(CFLAGS)
 
+# The rts Makefile depends on this variable, so only setting CFLAGS will not help
+HAS_PTHREAD     := 1
+
 # CABALFLAGS	:=
 CABALFLAGS      += --enable-tests
 ## Disable building of Effects
