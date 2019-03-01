@@ -111,24 +111,11 @@ CData cdata_manage(void * data, size_t size, CDataFinalizer finalizer)
 }
 
 void idris_requireAlloc(VM * vm, size_t size) {
-    if (!(vm->heap.next + size < vm->heap.end)) {
-        idris_gc(vm);
-    }
-#ifdef HAS_PTHREAD
-    int lock = vm->pthread->processes > 0;
-    if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_lock(&vm->pthread->alloc_lock);
-    }
-#endif
+    idris_requireAlloc_impl(vm, size);
 }
 
 void idris_doneAlloc(VM * vm) {
-#ifdef HAS_PTHREAD
-    int lock = vm->pthread->processes > 0;
-    if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_unlock(&vm->pthread->alloc_lock);
-    }
-#endif
+    idris_doneAlloc(vm);
 }
 
 int space(VM* vm, size_t size) {

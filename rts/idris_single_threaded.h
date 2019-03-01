@@ -4,5 +4,7 @@
 #include "idris_rts_types.h"
 
 VM* get_vm_impl(void);
+void idris_requireAlloc_impl(VM * vm, size_t size);
+void idris_doneAlloc_impl(VM * vm);
 
 #endif

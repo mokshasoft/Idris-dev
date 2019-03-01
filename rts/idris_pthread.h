@@ -75,4 +75,7 @@ void init_threadkeys(void);
 // Initialise thread-local data for this VM
 void init_threaddata(struct VM *vm);
 
+void idris_requireAlloc_impl(struct VM * vm, size_t size);
+void idris_doneAlloc_impl(struct VM * vm);
+
 #endif
