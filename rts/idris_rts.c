@@ -44,7 +44,7 @@ VM* init_vm(int stack_size, size_t heap_size,
     vm->ret = NULL;
     vm->reg1 = NULL;
 #ifdef HAS_PTHREAD
-    alloc_vm_pthread(&(vm->pthread), max_threads);
+    vm->pthread = alloc_vm_pthread(max_threads);
 #else
     global_vm = vm;
 #endif
@@ -86,10 +86,10 @@ Stats terminate(VM* vm) {
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
 #ifdef HAS_PTHREAD
-    free(vm->pthread.inbox);
-    pthread_mutex_destroy(&(vm->pthread.inbox_lock));
-    pthread_mutex_destroy(&(vm->pthread.inbox_block));
-    pthread_cond_destroy(&(vm->pthread.inbox_waiting));
+    free(vm->pthread->inbox);
+    pthread_mutex_destroy(&(vm->pthread->inbox_lock));
+    pthread_mutex_destroy(&(vm->pthread->inbox_block));
+    pthread_cond_destroy(&(vm->pthread->inbox_waiting));
 #endif
     // free(vm);
     // Set the VM as inactive, so that if any message gets sent to it
@@ -118,18 +118,18 @@ void idris_requireAlloc(VM * vm, size_t size) {
         idris_gc(vm);
     }
 #ifdef HAS_PTHREAD
-    int lock = vm->pthread.processes > 0;
+    int lock = vm->pthread->processes > 0;
     if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_lock(&vm->pthread.alloc_lock);
+       pthread_mutex_lock(&vm->pthread->alloc_lock);
     }
 #endif
 }
 
 void idris_doneAlloc(VM * vm) {
 #ifdef HAS_PTHREAD
-    int lock = vm->pthread.processes > 0;
+    int lock = vm->pthread->processes > 0;
     if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_unlock(&vm->pthread.alloc_lock);
+       pthread_mutex_unlock(&vm->pthread->alloc_lock);
     }
 #endif
 }
@@ -161,10 +161,10 @@ void* iallocate(VM * vm, size_t isize, int outerlock) {
     size_t size = aligned(isize);
 
 #ifdef HAS_PTHREAD
-    int lock = vm->pthread.processes > 0 && !outerlock;
+    int lock = vm->pthread->processes > 0 && !outerlock;
 
     if (lock) { // not message passing
-       pthread_mutex_lock(&vm->pthread.alloc_lock);
+       pthread_mutex_lock(&vm->pthread->alloc_lock);
     }
 #endif
 
@@ -177,7 +177,7 @@ void* iallocate(VM * vm, size_t isize, int outerlock) {
 
 #ifdef HAS_PTHREAD
         if (lock) { // not message passing
-           pthread_mutex_unlock(&vm->pthread.alloc_lock);
+           pthread_mutex_unlock(&vm->pthread->alloc_lock);
         }
 #endif
         return (void*)ptr;
@@ -190,7 +190,7 @@ void* iallocate(VM * vm, size_t isize, int outerlock) {
         idris_gc(vm);
 #ifdef HAS_PTHREAD
         if (lock) { // not message passing
-           pthread_mutex_unlock(&vm->pthread.alloc_lock);
+           pthread_mutex_unlock(&vm->pthread->alloc_lock);
         }
 #endif
         return iallocate(vm, size, outerlock);

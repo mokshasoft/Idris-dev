@@ -118,7 +118,7 @@ void idris_gc(VM* vm) {
 #ifdef HAS_PTHREAD
     Msg* msg;
 
-    for(msg = vm->pthread.inbox; msg < vm->pthread.inbox_write; ++msg) {
+    for(msg = vm->pthread->inbox; msg < vm->pthread->inbox_write; ++msg) {
         msg->msg = copy(vm, msg->msg);
     }
 #endif

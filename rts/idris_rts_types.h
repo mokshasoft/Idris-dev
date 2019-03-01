@@ -123,7 +123,7 @@ struct VM {
     CHeap c_heap;
     Heap heap;
 #ifdef HAS_PTHREAD
-    struct VMPthread_t pthread;
+    struct VMPthread_t* pthread;
 #endif
     Stats stats;
 

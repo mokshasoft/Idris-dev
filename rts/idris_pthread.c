@@ -18,11 +18,11 @@ VM* get_vm_impl(void) {
     return pthread_getspecific(vm_key);
 }
 
-void init_vm_pthread
-    ( VMPthread *pt
-    , int max_threads // not implemented yet
+VMPthread* alloc_vm_pthread
+    ( int max_threads // not implemented yet
     )
 {
+    VMPthread *pt = malloc(sizeof(VMPthread));
     pt->inbox = malloc(1024*sizeof(pt->inbox[0]));
     assert(pt->inbox);
     memset(pt->inbox, 0, 1024*sizeof(pt->inbox[0]));
@@ -46,6 +46,11 @@ void init_vm_pthread
 
     pt->max_threads = max_threads;
     pt->processes = 0;
+    return pt;
+}
+
+void free_vm_pthread(VMPthread *pt)
+{
 }
 
 typedef struct {
@@ -66,7 +71,7 @@ void* runThread(void* arg) {
     BASETOP(0);
     ADDTOP(1);
     td->fn(vm, NULL);
-    callvm->pthread.processes--;
+    callvm->pthread->processes--;
 
     free(td);
 
@@ -78,8 +83,8 @@ void* runThread(void* arg) {
 
 void* vmThread(struct VM* callvm, func f, VAL arg) {
     struct VM* vm = init_vm(callvm->stack_max - callvm->valstack, callvm->heap.size,
-                     callvm->pthread.max_threads);
-    vm->pthread.processes=1; // since it can send and receive messages
+                     callvm->pthread->max_threads);
+    vm->pthread->processes=1; // since it can send and receive messages
     pthread_t t;
     pthread_attr_t attr;
 //    size_t stacksize;
@@ -94,7 +99,7 @@ void* vmThread(struct VM* callvm, func f, VAL arg) {
     td->fn = f;
     td->arg = copyTo(vm, arg);
 
-    callvm->pthread.processes++;
+    callvm->pthread->processes++;
 
     int ok = pthread_create(&t, &attr, runThread, td);
 //    usleep(100);
@@ -193,20 +198,20 @@ int idris_sendMessage(struct VM* sender, int channel_id, struct VM* dest, VAL ms
     if (dest->active == 0) { return 0; } // No VM to send to
 
     int gcs = dest->stats.collections;
-    pthread_mutex_lock(&dest->pthread.alloc_lock);
+    pthread_mutex_lock(&dest->pthread->alloc_lock);
     VAL dmsg = copyTo(dest, msg);
-    pthread_mutex_unlock(&dest->pthread.alloc_lock);
+    pthread_mutex_unlock(&dest->pthread->alloc_lock);
 
     if (dest->stats.collections > gcs) {
         // a collection will have invalidated the copy
-        pthread_mutex_lock(&dest->pthread.alloc_lock);
+        pthread_mutex_lock(&dest->pthread->alloc_lock);
         dmsg = copyTo(dest, msg); // try again now there's room...
-        pthread_mutex_unlock(&dest->pthread.alloc_lock);
+        pthread_mutex_unlock(&dest->pthread->alloc_lock);
     }
 
-    pthread_mutex_lock(&(dest->pthread.inbox_lock));
+    pthread_mutex_lock(&(dest->pthread->inbox_lock));
 
-    if (dest->pthread.inbox_write >= dest->pthread.inbox_end) {
+    if (dest->pthread->inbox_write >= dest->pthread->inbox_end) {
         // FIXME: This is obviously bad in the long run. This should
         // either block, make the inbox bigger, or return an error code,
         // or possibly make it user configurable
@@ -214,26 +219,26 @@ int idris_sendMessage(struct VM* sender, int channel_id, struct VM* dest, VAL ms
         exit(-1);
     }
 
-    dest->pthread.inbox_write->msg = dmsg;
+    dest->pthread->inbox_write->msg = dmsg;
     if (channel_id == 0) {
         // Set lowest bit to indicate this message is initiating a channel
-        channel_id = 1 + ((dest->pthread.inbox_nextid++) << 1);
+        channel_id = 1 + ((dest->pthread->inbox_nextid++) << 1);
     } else {
         channel_id = channel_id << 1;
     }
-    dest->pthread.inbox_write->channel_id = channel_id;
+    dest->pthread->inbox_write->channel_id = channel_id;
 
-    dest->pthread.inbox_write->sender = sender;
-    dest->pthread.inbox_write++;
+    dest->pthread->inbox_write->sender = sender;
+    dest->pthread->inbox_write++;
 
     // Wake up the other thread
-    pthread_mutex_lock(&dest->pthread.inbox_block);
-    pthread_cond_signal(&dest->pthread.inbox_waiting);
-    pthread_mutex_unlock(&dest->pthread.inbox_block);
+    pthread_mutex_lock(&dest->pthread->inbox_block);
+    pthread_cond_signal(&dest->pthread->inbox_waiting);
+    pthread_mutex_unlock(&dest->pthread->inbox_block);
 
 //    printf("Sending [signalled]...\n");
 
-    pthread_mutex_unlock(&(dest->pthread.inbox_lock));
+    pthread_mutex_unlock(&(dest->pthread->inbox_lock));
 //    printf("Sending [unlock]...\n");
     return channel_id >> 1;
 }
@@ -245,7 +250,7 @@ struct VM* idris_checkMessages(struct VM* vm) {
 Msg* idris_checkInitMessages(struct VM* vm) {
     Msg* msg;
 
-    for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_end && msg->msg != NULL; ++msg) {
+    for (msg = vm->pthread->inbox; msg < vm->pthread->inbox_end && msg->msg != NULL; ++msg) {
 	if ((msg->channel_id & 1) == 1) { // init bit set
             return msg;
         }
@@ -256,7 +261,7 @@ Msg* idris_checkInitMessages(struct VM* vm) {
 struct VM* idris_checkMessagesFrom(struct VM* vm, int channel_id, struct VM* sender) {
     Msg* msg;
 
-    for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_end && msg->msg != NULL; ++msg) {
+    for (msg = vm->pthread->inbox; msg < vm->pthread->inbox_end && msg->msg != NULL; ++msg) {
         if (sender == NULL || msg->sender == sender) {
             if (channel_id == 0 || channel_id == msg->channel_id >> 1) {
                 return msg->sender;
@@ -277,13 +282,13 @@ struct VM* idris_checkMessagesTimeout(struct VM* vm, int delay) {
 
     // Wait either for a timeout or until we get a signal that a message
     // has arrived.
-    pthread_mutex_lock(&vm->pthread.inbox_block);
+    pthread_mutex_lock(&vm->pthread->inbox_block);
     timeout.tv_sec = time (NULL) + delay;
     timeout.tv_nsec = 0;
-    status = pthread_cond_timedwait(&vm->pthread.inbox_waiting, &vm->pthread.inbox_block,
+    status = pthread_cond_timedwait(&vm->pthread->inbox_waiting, &vm->pthread->inbox_block,
                                &timeout);
     (void)(status); //don't emit 'unused' warning
-    pthread_mutex_unlock(&vm->pthread.inbox_block);
+    pthread_mutex_unlock(&vm->pthread->inbox_block);
 
     return idris_checkMessagesFrom(vm, 0, NULL);
 }
@@ -292,7 +297,7 @@ struct VM* idris_checkMessagesTimeout(struct VM* vm, int delay) {
 Msg* idris_getMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
     Msg* msg;
 
-    for (msg = vm->pthread.inbox; msg < vm->pthread.inbox_write; ++msg) {
+    for (msg = vm->pthread->inbox; msg < vm->pthread->inbox_write; ++msg) {
         if (sender == NULL || msg->sender == sender) {
             if (channel_id == 0 || channel_id == msg->channel_id >> 1) {
                 return msg;
@@ -316,7 +321,7 @@ Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
 
     if (sender && sender->active == 0) { return NULL; } // No VM to receive from
 
-    pthread_mutex_lock(&vm->pthread.inbox_block);
+    pthread_mutex_lock(&vm->pthread->inbox_block);
     msg = idris_getMessageFrom(vm, channel_id, sender);
 
     while (msg == NULL) {
@@ -324,38 +329,38 @@ Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender) {
 //        printf("Waiting [lock]...\n");
         timeout.tv_sec = time (NULL) + 3;
         timeout.tv_nsec = 0;
-        status = pthread_cond_timedwait(&vm->pthread.inbox_waiting, &vm->pthread.inbox_block,
+        status = pthread_cond_timedwait(&vm->pthread->inbox_waiting, &vm->pthread->inbox_block,
                                &timeout);
         (void)(status); //don't emit 'unused' warning
 //        printf("Waiting [unlock]... %d\n", status);
         msg = idris_getMessageFrom(vm, channel_id, sender);
     }
-    pthread_mutex_unlock(&vm->pthread.inbox_block);
+    pthread_mutex_unlock(&vm->pthread->inbox_block);
 
     if (msg != NULL) {
         ret = malloc(sizeof(*ret));
         ret->msg = msg->msg;
         ret->sender = msg->sender;
 
-        pthread_mutex_lock(&(vm->pthread.inbox_lock));
+        pthread_mutex_lock(&(vm->pthread->inbox_lock));
 
         // Slide everything down after the message in the inbox,
         // Move the inbox_write pointer down, and clear the value at the
         // end - O(n) but it's easier since the message from a specific
         // sender could be anywhere in the inbox
 
-        for(;msg < vm->pthread.inbox_write; ++msg) {
-            if (msg+1 != vm->pthread.inbox_end) {
+        for(;msg < vm->pthread->inbox_write; ++msg) {
+            if (msg+1 != vm->pthread->inbox_end) {
                 msg->sender = (msg + 1)->sender;
                 msg->msg = (msg + 1)->msg;
             }
         }
 
-        vm->pthread.inbox_write->msg = NULL;
-        vm->pthread.inbox_write->sender = NULL;
-        vm->pthread.inbox_write--;
+        vm->pthread->inbox_write->msg = NULL;
+        vm->pthread->inbox_write->sender = NULL;
+        vm->pthread->inbox_write--;
 
-        pthread_mutex_unlock(&(vm->pthread.inbox_lock));
+        pthread_mutex_unlock(&(vm->pthread->inbox_lock));
     } else {
         fprintf(stderr, "No messages waiting");
         exit(-1);
