@@ -441,6 +441,22 @@ void* iallocate_impl(struct VM * vm, size_t isize, int outerlock) {
         if (lock) { // not message passing
            pthread_mutex_unlock(&vm->pthread->alloc_lock);
         }
-        return iallocate(vm, size, outerlock);
+        return iallocate_impl(vm, size, outerlock);
     }
+}
+
+VAL idris_getMsg(Msg* msg) {
+    return msg->msg;
+}
+
+VM* idris_getSender(Msg* msg) {
+    return msg->sender;
+}
+
+int idris_getChannel(Msg* msg) {
+    return msg->channel_id >> 1;
+}
+
+void idris_freeMsg(Msg* msg) {
+    free(msg);
 }
