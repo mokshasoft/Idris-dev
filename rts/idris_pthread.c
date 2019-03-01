@@ -1,5 +1,6 @@
 #include "idris_pthread.h"
 #include "idris_rts.h"
+#include "idris_gc.h"
 
 #include <string.h>
 #include <stdarg.h>
@@ -385,4 +386,21 @@ void init_threadkeys(void) {
 
 void init_threaddata(struct VM *vm) {
     pthread_setspecific(vm_key, vm);
+}
+
+void idris_requireAlloc_impl(struct VM * vm, size_t size) {
+    if (!(vm->heap.next + size < vm->heap.end)) {
+        idris_gc(vm);
+    }
+    int lock = vm->pthread->processes > 0;
+    if (lock) { // We only need to lock if we're in concurrent mode
+       pthread_mutex_lock(&vm->pthread->alloc_lock);
+    }
+}
+
+void idris_doneAlloc_impl(struct VM * vm) {
+    int lock = vm->pthread->processes > 0;
+    if (lock) { // We only need to lock if we're in concurrent mode
+       pthread_mutex_unlock(&vm->pthread->alloc_lock);
+    }
 }
