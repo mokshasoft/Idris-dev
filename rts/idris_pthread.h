@@ -40,14 +40,6 @@ struct VMPthread_t {
 
 typedef struct VMPthread_t VMPthread;
 
-VMPthread* alloc_vm_pthread
-    ( struct VM *vm
-    , int max_threads // not implemented yet
-    );
-void free_vm_pthread(VMPthread *pt);
-
-struct VM* get_vm_impl(void);
-
 void* vmThread(struct VM* callvm, func f, VAL arg);
 void* idris_stopThread(struct VM* vm);
 
@@ -71,15 +63,21 @@ Msg* idris_recvMessage(struct VM* vm);
 // block until there is a message in the queue
 Msg* idris_recvMessageFrom(struct VM* vm, int channel_id, struct VM* sender);
 
-void idris_requireAlloc_impl(struct VM * vm, size_t size);
-void idris_doneAlloc_impl(struct VM * vm);
-void* iallocate_impl(struct VM * vm, size_t isize, int outerlock);
-
 // Query/free structure used to return message data (recvMessage will malloc,
 // so needs an explicit free)
 VAL idris_getMsg(Msg* msg);
 struct VM* idris_getSender(Msg* msg);
 int idris_getChannel(Msg* msg);
 void idris_freeMsg(Msg* msg);
+
+VMPthread* alloc_vm_pthread
+    ( struct VM *vm
+    , int max_threads // not implemented yet
+    );
+void free_vm_pthread(VMPthread *pt);
+struct VM* get_vm_impl(void);
+void idris_requireAlloc_impl(struct VM * vm, size_t size);
+void idris_doneAlloc_impl(struct VM * vm);
+void* iallocate_impl(struct VM * vm, size_t isize, int outerlock);
 
 #endif
