@@ -111,7 +111,7 @@ void idris_requireAlloc(VM * vm, size_t size) {
 }
 
 void idris_doneAlloc(VM * vm) {
-    idris_doneAlloc(vm);
+    idris_doneAlloc_impl(vm);
 }
 
 int space(VM* vm, size_t size) {
