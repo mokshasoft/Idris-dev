@@ -11,7 +11,7 @@ adder = do
     case msg of
         Add x y => do
             ok <- unsafeSend chSender (x + y)
-            adder
+            stopThread
 
 sendAdd : Channel -> Int -> Int -> IO Int
 sendAdd ch i1 i2 = do
