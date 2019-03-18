@@ -87,22 +87,20 @@ typedef struct {
 } ThreadData;
 
 void* runThread(void* arg) {
-    ThreadData* td = (ThreadData*)arg;
-    struct VM* vm = td->vm;
-    struct VM* callvm = td->callvm;
+    ThreadData td = *(ThreadData*)arg;
+    struct VM* vm = td.vm;
+    free(arg);
 
-    init_threaddata(vm);
+    init_threaddata(td.vm);
 
-    TOP(0) = td->arg;
+    TOP(0) = td.arg;
     BASETOP(0);
     ADDTOP(1);
-    td->fn(vm, NULL);
-    callvm->pthread->processes--;
-
-    free(td);
+    td.fn(td.vm, NULL);
+    td.callvm->pthread->processes--;
 
     //    Stats stats =
-    terminate(vm);
+    terminate(td.vm);
     //    aggregate_stats(&(td->vm->stats), &stats);
     return NULL;
 }
