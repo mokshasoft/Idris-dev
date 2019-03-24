@@ -69,8 +69,9 @@ VMPthread* alloc_vm_pthread
     return pt;
 }
 
-void free_vm_pthread(VMPthread *pt)
+void free_vm_threaded(struct VM *vm)
 {
+    VMPthread* pt = vm->pthread;
     free(pt->inbox);
     pthread_mutex_destroy(&(pt->inbox_lock));
     pthread_mutex_destroy(&(pt->inbox_block));

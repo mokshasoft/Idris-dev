@@ -74,7 +74,7 @@ VMPthread* alloc_vm_pthread
     ( struct VM *vm
     , int max_threads // not implemented yet
     );
-void free_vm_pthread(VMPthread *pt);
+void free_vm_threaded(struct VM *vm);
 struct VM* get_vm_impl(void);
 void idris_requireAlloc_impl(struct VM * vm, size_t size);
 void idris_doneAlloc_impl(struct VM * vm);

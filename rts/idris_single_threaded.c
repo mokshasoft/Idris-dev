@@ -10,6 +10,11 @@ void init_vm_single(VM * vm)
     global_vm = vm;
 }
 
+void free_vm_threaded(struct VM *vm)
+{
+    // nothing to free
+}
+
 VM* get_vm_impl(void)
 {
     return global_vm;

@@ -81,9 +81,7 @@ Stats terminate(VM* vm) {
     free(vm->valstack);
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
-#ifdef HAS_PTHREAD
-    free_vm_pthread(vm->pthread);
-#endif
+    free_vm_threaded(vm);
     // free(vm);
     // Set the VM as inactive, so that if any message gets sent to it
     // it will not get there, rather than crash the entire system.
