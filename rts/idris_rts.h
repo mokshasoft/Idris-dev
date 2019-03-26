@@ -338,6 +338,8 @@ static inline size_t aligned(size_t sz) {
     return (sz + sizeof(void*) - 1) & ~(sizeof(void*)-1);
 }
 
+VAL copy(VM* vm, VAL x);
+
 #endif
 
 /*
