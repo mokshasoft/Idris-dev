@@ -15,6 +15,11 @@ void free_vm_threaded(struct VM *vm)
     // nothing to free
 }
 
+void idris_gc_threaded_impl(struct VM *vm)
+{
+    // nothing to gc
+}
+
 VM* get_vm_impl(void)
 {
     return global_vm;

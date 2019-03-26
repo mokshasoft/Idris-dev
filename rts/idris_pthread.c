@@ -80,6 +80,14 @@ void free_vm_threaded(struct VM *vm)
     free(pt);
 }
 
+void idris_gc_threaded_impl(struct VM *vm)
+{
+    Msg* msg;
+    for(msg = vm->pthread->inbox; msg < vm->pthread->inbox_write; ++msg) {
+        msg->msg = copy(vm, msg->msg);
+    }
+}
+
 typedef struct {
     struct VM* vm; // thread's VM
     struct VM* callvm; // calling thread's VM

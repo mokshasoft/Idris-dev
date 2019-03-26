@@ -69,6 +69,11 @@ void close_vm(VM* vm) {
     terminate(vm);
 }
 
+void idris_gc_threaded(VM *vm)
+{
+    idris_gc_threaded_impl(vm);
+}
+
 void init_signals(void) {
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__)
     signal(SIGPIPE, SIG_IGN);

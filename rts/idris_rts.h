@@ -53,6 +53,8 @@ Stats terminate(VM* vm);
 VM* idris_vm(void);
 void close_vm(VM* vm);
 
+void idris_gc_threaded(VM *vm);
+
 // Register access
 
 #define RVAL (vm->ret)

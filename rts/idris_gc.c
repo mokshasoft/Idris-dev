@@ -63,13 +63,7 @@ void idris_gc(VM* vm) {
         *root = copy(vm, *root);
     }
 
-#ifdef HAS_PTHREAD
-    Msg* msg;
-
-    for(msg = vm->pthread->inbox; msg < vm->pthread->inbox_write; ++msg) {
-        msg->msg = copy(vm, msg->msg);
-    }
-#endif
+    idris_gc_threaded(vm);
 
     vm->ret = copy(vm, vm->ret);
     vm->reg1 = copy(vm, vm->reg1);
