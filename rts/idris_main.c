@@ -1,5 +1,6 @@
 #include "idris_gmp.h"
 #include "idris_opts.h"
+#include "idris_rts_types.h"
 #include "idris_rts.h"
 #include "idris_stats.h"
 
@@ -53,8 +54,6 @@ int main(int argc, char **argv) {
     __idris_argv = argv;
 
     VM* vm = init_vm(opts.max_stack_size, opts.init_heap_size, 1);
-    init_threadkeys();
-    init_threaddata(vm);
     init_gmpalloc();
 
     init_nullaries();

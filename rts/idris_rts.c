@@ -1,11 +1,17 @@
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 #include "idris_rts.h"
 #include "idris_gc.h"
 #include "idris_utf8.h"
 #include "idris_bitstring.h"
 #include "getline.h"
+#ifdef HAS_PTHREAD
+#include "idris_pthread.h"
+#else
+#include "idris_single_threaded.h"
+#endif
 
 #define STATIC_ASSERT(COND,MSG) typedef char static_assertion_##MSG[(COND)?1:-1]
 
@@ -14,17 +20,6 @@ STATIC_ASSERT(sizeof(Hdr) == 8, condSizeOfHdr);
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__)
 #include <signal.h>
 #endif
-
-
-#ifdef HAS_PTHREAD
-static pthread_key_t vm_key;
-#else
-static VM* global_vm;
-#endif
-
-void free_key(void *vvm) {
-    // nothing to free, we just used the VM pointer which is freed elsewhere
-}
 
 VM* init_vm(int stack_size, size_t heap_size,
             int max_threads // not implemented yet
@@ -49,33 +44,10 @@ VM* init_vm(int stack_size, size_t heap_size,
     vm->ret = NULL;
     vm->reg1 = NULL;
 #ifdef HAS_PTHREAD
-    vm->inbox = malloc(1024*sizeof(vm->inbox[0]));
-    assert(vm->inbox);
-    memset(vm->inbox, 0, 1024*sizeof(vm->inbox[0]));
-    vm->inbox_end = vm->inbox + 1024;
-    vm->inbox_write = vm->inbox;
-    vm->inbox_nextid = 1;
-
-    // The allocation lock must be reentrant. The lock exists to ensure that
-    // no memory is allocated during the message sending process, but we also
-    // check the lock in calls to allocate.
-    // The problem comes when we use requireAlloc to guarantee a chunk of memory
-    // first: this sets the lock, and since it is not reentrant, we get a deadlock.
-    pthread_mutexattr_t rec_attr;
-    pthread_mutexattr_init(&rec_attr);
-    pthread_mutexattr_settype(&rec_attr, PTHREAD_MUTEX_RECURSIVE);
-
-    pthread_mutex_init(&(vm->inbox_lock), NULL);
-    pthread_mutex_init(&(vm->inbox_block), NULL);
-    pthread_mutex_init(&(vm->alloc_lock), &rec_attr);
-    pthread_cond_init(&(vm->inbox_waiting), NULL);
-
-    vm->max_threads = max_threads;
-    vm->processes = 0;
+    vm->pthread = alloc_vm_pthread(vm, max_threads);
     vm->creator = NULL;
-
 #else
-    global_vm = vm;
+    init_vm_single(vm);
 #endif
     STATS_LEAVE_INIT(vm->stats)
     return vm;
@@ -83,8 +55,6 @@ VM* init_vm(int stack_size, size_t heap_size,
 
 VM* idris_vm(void) {
     VM* vm = init_vm(4096000, 4096000, 1);
-    init_threadkeys();
-    init_threaddata(vm);
     init_gmpalloc();
     init_nullaries();
     init_signals();
@@ -93,34 +63,16 @@ VM* idris_vm(void) {
 }
 
 VM* get_vm(void) {
-#ifdef HAS_PTHREAD
-    return pthread_getspecific(vm_key);
-#else
-    return global_vm;
-#endif
+    return get_vm_impl();
 }
 
 void close_vm(VM* vm) {
     terminate(vm);
 }
 
-#ifdef HAS_PTHREAD
-void create_key(void) {
-    pthread_key_create(&vm_key, free_key);
-}
-#endif
-
-void init_threadkeys(void) {
-#ifdef HAS_PTHREAD
-    static pthread_once_t key_once = PTHREAD_ONCE_INIT;
-    pthread_once(&key_once, create_key);
-#endif
-}
-
-void init_threaddata(VM *vm) {
-#ifdef HAS_PTHREAD
-    pthread_setspecific(vm_key, vm);
-#endif
+void idris_gc_threaded(VM *vm)
+{
+    idris_gc_threaded_impl(vm);
 }
 
 void init_signals(void) {
@@ -135,16 +87,11 @@ Stats terminate(VM* vm) {
     free(vm->valstack);
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
-#ifdef HAS_PTHREAD
-    pthread_mutex_destroy(&(vm->inbox_lock));
-    pthread_mutex_destroy(&(vm->inbox_block));
-    pthread_mutex_destroy(&(vm->alloc_lock));
-    pthread_cond_destroy(&(vm->inbox_waiting));
+    free_vm_threaded(vm);
     free(vm->inbox);
     if (vm->creator != NULL) {
         vm->creator->processes--;
     }
-#endif
     // free(vm);
     // Set the VM as inactive, so that if any message gets sent to it
     // it will not get there, rather than crash the entire system.
@@ -168,24 +115,11 @@ CData cdata_manage(void * data, size_t size, CDataFinalizer finalizer)
 }
 
 void idris_requireAlloc(VM * vm, size_t size) {
-    if (!(vm->heap.next + size < vm->heap.end)) {
-        idris_gc(vm);
-    }
-#ifdef HAS_PTHREAD
-    int lock = vm->processes > 0;
-    if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_lock(&vm->alloc_lock);
-    }
-#endif
+    idris_requireAlloc_impl(vm, size);
 }
 
 void idris_doneAlloc(VM * vm) {
-#ifdef HAS_PTHREAD
-    int lock = vm->processes > 0;
-    if (lock) { // We only need to lock if we're in concurrent mode
-       pthread_mutex_unlock(&vm->alloc_lock);
-    }
-#endif
+    idris_doneAlloc_impl(vm);
 }
 
 int space(VM* vm, size_t size) {
@@ -212,51 +146,7 @@ void * allocate(size_t sz, int lock) {
 }
 
 void* iallocate(VM * vm, size_t isize, int outerlock) {
-    size_t size = aligned(isize);
-
-#ifdef HAS_PTHREAD
-    int lock = vm->processes > 0 && !outerlock;
-
-    if (lock) { // not message passing
-       pthread_mutex_lock(&vm->alloc_lock);
-    }
-#endif
-
-    if (vm->heap.next + size < vm->heap.end) {
-        STATS_ALLOC(vm->stats, size)
-        char* ptr = vm->heap.next;
-        vm->heap.next += size;
-        assert(vm->heap.next <= vm->heap.end);
-        ((Hdr*)ptr)->sz = isize;
-
-#ifdef HAS_PTHREAD
-        if (lock) { // not message passing
-           pthread_mutex_unlock(&vm->alloc_lock);
-        }
-#endif
-        return (void*)ptr;
-    } else {
-        // If we're trying to allocate something bigger than the heap,
-        // grow the heap here so that the new heap is big enough.
-        if (size > vm->heap.size) {
-            vm->heap.size += size;
-        }
-        idris_gc(vm);
-
-        // If there's still not enough room, grow the heap and try again
-        if (vm->heap.next + size >= vm->heap.end) {
-            vm->heap.size += size+vm->heap.growth;
-            idris_gc(vm);
-        }
-
-#ifdef HAS_PTHREAD
-        if (lock) { // not message passing
-           pthread_mutex_unlock(&vm->alloc_lock);
-        }
-#endif
-        return iallocate(vm, size, outerlock);
-    }
-
+    return iallocate_impl(vm, isize, outerlock);
 }
 
 static String * allocStr(VM * vm, size_t len, int outer) {
@@ -791,337 +681,6 @@ VAL idris_systemInfo(VM* vm, VAL index) {
     return MKSTR(vm, "");
 }
 
-#ifdef HAS_PTHREAD
-typedef struct {
-    VM* vm; // thread's VM
-    func fn;
-    VAL arg;
-} ThreadData;
-
-void* runThread(void* arg) {
-    ThreadData* td = (ThreadData*)arg;
-    VM* vm = td->vm;
-    func fn = td->fn;
-
-    init_threaddata(vm);
-
-    TOP(0) = td->arg;
-    BASETOP(0);
-    ADDTOP(1);
-    free(td);
-    fn(vm, NULL);
-
-    //    Stats stats =
-    terminate(vm);
-    //    aggregate_stats(&(td->vm->stats), &stats);
-    return NULL;
-}
-
-void* vmThread(VM* callvm, func f, VAL arg) {
-    VM* vm = init_vm(callvm->stack_max - callvm->valstack, callvm->heap.size,
-                     callvm->max_threads);
-    vm->processes=1; // since it can send and receive messages
-    vm->creator = callvm;
-    pthread_t t;
-    pthread_attr_t attr;
-//    size_t stacksize;
-
-    pthread_attr_init(&attr);
-//    pthread_attr_getstacksize (&attr, &stacksize);
-//    pthread_attr_setstacksize (&attr, stacksize*64);
-
-    ThreadData *td = malloc(sizeof(ThreadData)); // free'd in runThread
-    td->vm = vm;
-    td->fn = f;
-    td->arg = copyTo(vm, arg);
-
-    callvm->processes++;
-
-    int ok = pthread_create(&t, &attr, runThread, td);
-    pthread_attr_destroy(&attr);
-//    usleep(100);
-    if (ok == 0) {
-        return vm;
-    } else {
-        terminate(vm);
-        return NULL;
-    }
-}
-
-void* idris_stopThread(VM* vm) {
-    terminate(vm);
-    pthread_exit(NULL);
-    return NULL;
-}
-
-static VAL doCopyTo(VM* vm, VAL x);
-
-static void copyArray(VM* vm, VAL * dst, VAL * src, size_t len) {
-    size_t i;
-    for(i = 0; i < len; ++i)
-      dst[i] = doCopyTo(vm, src[i]);
-}
-
-
-// VM is assumed to be a different vm from the one x lives on
-
-static VAL doCopyTo(VM* vm, VAL x) {
-    int ar;
-    VAL cl;
-    if (x==NULL) {
-        return x;
-    }
-    switch(GETTY(x)) {
-    case CT_INT:
-        return x;
-    case CT_CDATA:
-        cl = MKCDATAc(vm, GETCDATA(x));
-        break;
-    case CT_BIGINT:
-        cl = MKBIGMc(vm, GETMPZ(x));
-        break;
-    case CT_CON:
-        ar = CARITY(x);
-        if (ar == 0 && CTAG(x) < 256) { // globally allocated
-            cl = x;
-        } else {
-            Con * c = allocConF(vm, CTAG(x), ar, 1);
-            copyArray(vm, c->args, ((Con*)x)->args, ar);
-            cl = (VAL)c;
-        }
-        break;
-    case CT_ARRAY: {
-        size_t len = CELEM(x);
-        Array * a = allocArrayF(vm, len, 1);
-        copyArray(vm, a->array, ((Array*)x)->array, len);
-        cl = (VAL)a;
-    } break;
-    case CT_STRING:
-    case CT_FLOAT:
-    case CT_PTR:
-    case CT_MANAGEDPTR:
-    case CT_BITS32:
-    case CT_BITS64:
-    case CT_RAWDATA:
-        {
-            cl = iallocate(vm, x->hdr.sz, 0);
-            memcpy(cl, x, x->hdr.sz);
-        }
-        break;
-    default:
-        assert(0); // We're in trouble if this happens...
-	cl = NULL;
-    }
-    return cl;
-}
-
-VAL copyTo(VM* vm, VAL x) {
-    VAL ret = doCopyTo(vm, x);
-    return ret;
-}
-
-// Add a message to another VM's message queue
-int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg) {
-    // FIXME: If GC kicks in in the middle of the copy, we're in trouble.
-    // Probably best check there is enough room in advance. (How?)
-
-    // Also a problem if we're allocating at the same time as the
-    // destination thread (which is very likely)
-    // Should the inbox be a different memory space?
-
-    // So: we try to copy, if a collection happens, we do the copy again
-    // under the assumption there's enough space this time.
-
-    if (dest->active == 0) { return 0; } // No VM to send to
-
-    int gcs = dest->stats.collections;
-    pthread_mutex_lock(&dest->alloc_lock);
-    VAL dmsg = copyTo(dest, msg);
-    pthread_mutex_unlock(&dest->alloc_lock);
-
-    if (dest->stats.collections > gcs) {
-        // a collection will have invalidated the copy
-        pthread_mutex_lock(&dest->alloc_lock);
-        dmsg = copyTo(dest, msg); // try again now there's room...
-        pthread_mutex_unlock(&dest->alloc_lock);
-    }
-
-    pthread_mutex_lock(&(dest->inbox_lock));
-
-    if (dest->inbox_write >= dest->inbox_end) {
-        // FIXME: This is obviously bad in the long run. This should
-        // either block, make the inbox bigger, or return an error code,
-        // or possibly make it user configurable
-        fprintf(stderr, "Inbox full");
-        exit(-1);
-    }
-
-    dest->inbox_write->msg = dmsg;
-    if (channel_id == 0) {
-        // Set lowest bit to indicate this message is initiating a channel
-        channel_id = 1 + ((dest->inbox_nextid++) << 1);
-    } else {
-        channel_id = channel_id << 1;
-    }
-    dest->inbox_write->channel_id = channel_id;
-
-    dest->inbox_write->sender = sender;
-    dest->inbox_write++;
-
-    // Wake up the other thread
-    pthread_mutex_lock(&dest->inbox_block);
-    pthread_cond_signal(&dest->inbox_waiting);
-    pthread_mutex_unlock(&dest->inbox_block);
-
-//    printf("Sending [signalled]...\n");
-
-    pthread_mutex_unlock(&(dest->inbox_lock));
-//    printf("Sending [unlock]...\n");
-    return channel_id >> 1;
-}
-
-VM* idris_checkMessages(VM* vm) {
-    return idris_checkMessagesFrom(vm, 0, NULL);
-}
-
-Msg* idris_checkInitMessages(VM* vm) {
-    Msg* msg;
-
-    for (msg = vm->inbox; msg < vm->inbox_end && msg->msg != NULL; ++msg) {
-	if ((msg->channel_id & 1) == 1) { // init bit set
-            return msg;
-        }
-    }
-    return 0;
-}
-
-VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender) {
-    Msg* msg;
-
-    for (msg = vm->inbox; msg < vm->inbox_end && msg->msg != NULL; ++msg) {
-        if (sender == NULL || msg->sender == sender) {
-            if (channel_id == 0 || channel_id == msg->channel_id >> 1) {
-                return msg->sender;
-            }
-        }
-    }
-    return 0;
-}
-
-VM* idris_checkMessagesTimeout(VM* vm, int delay) {
-    VM* sender = idris_checkMessagesFrom(vm, 0, NULL);
-    if (sender != NULL) {
-        return sender;
-    }
-
-    struct timespec timeout;
-    int status;
-
-    // Wait either for a timeout or until we get a signal that a message
-    // has arrived.
-    pthread_mutex_lock(&vm->inbox_block);
-    timeout.tv_sec = time (NULL) + delay;
-    timeout.tv_nsec = 0;
-    status = pthread_cond_timedwait(&vm->inbox_waiting, &vm->inbox_block,
-                               &timeout);
-    (void)(status); //don't emit 'unused' warning
-    pthread_mutex_unlock(&vm->inbox_block);
-
-    return idris_checkMessagesFrom(vm, 0, NULL);
-}
-
-
-Msg* idris_getMessageFrom(VM* vm, int channel_id, VM* sender) {
-    Msg* msg;
-
-    for (msg = vm->inbox; msg < vm->inbox_write; ++msg) {
-        if (sender == NULL || msg->sender == sender) {
-            if (channel_id == 0 || channel_id == msg->channel_id >> 1) {
-                return msg;
-            }
-        }
-    }
-    return NULL;
-}
-
-// block until there is a message in the queue
-Msg* idris_recvMessage(VM* vm) {
-    return idris_recvMessageFrom(vm, 0, NULL);
-}
-
-Msg* idris_recvMessageFrom(VM* vm, int channel_id, VM* sender) {
-    Msg* msg;
-    Msg* ret;
-
-    struct timespec timeout;
-    int status;
-
-    if (sender && sender->active == 0) { return NULL; } // No VM to receive from
-
-    pthread_mutex_lock(&vm->inbox_block);
-    msg = idris_getMessageFrom(vm, channel_id, sender);
-
-    while (msg == NULL) {
-//        printf("No message yet\n");
-//        printf("Waiting [lock]...\n");
-        timeout.tv_sec = time (NULL) + 3;
-        timeout.tv_nsec = 0;
-        status = pthread_cond_timedwait(&vm->inbox_waiting, &vm->inbox_block,
-                               &timeout);
-        (void)(status); //don't emit 'unused' warning
-//        printf("Waiting [unlock]... %d\n", status);
-        msg = idris_getMessageFrom(vm, channel_id, sender);
-    }
-    pthread_mutex_unlock(&vm->inbox_block);
-
-    if (msg != NULL) {
-        ret = malloc(sizeof(*ret));
-        ret->msg = msg->msg;
-        ret->sender = msg->sender;
-
-        pthread_mutex_lock(&(vm->inbox_lock));
-
-        // Slide everything down after the message in the inbox,
-        // Move the inbox_write pointer down, and clear the value at the
-        // end - O(n) but it's easier since the message from a specific
-        // sender could be anywhere in the inbox
-
-        for(;msg < vm->inbox_write; ++msg) {
-            if (msg+1 != vm->inbox_end) {
-                msg->sender = (msg + 1)->sender;
-                msg->msg = (msg + 1)->msg;
-            }
-        }
-
-        vm->inbox_write->msg = NULL;
-        vm->inbox_write->sender = NULL;
-        vm->inbox_write--;
-
-        pthread_mutex_unlock(&(vm->inbox_lock));
-    } else {
-        fprintf(stderr, "No messages waiting");
-        exit(-1);
-    }
-    return ret;
-}
-#endif
-
-VAL idris_getMsg(Msg* msg) {
-    return msg->msg;
-}
-
-VM* idris_getSender(Msg* msg) {
-    return msg->sender;
-}
-
-int idris_getChannel(Msg* msg) {
-    return msg->channel_id >> 1;
-}
-
-void idris_freeMsg(Msg* msg) {
-    free(msg);
-}
-
 int idris_errno(void) {
     return errno;
 }
@@ -1171,4 +730,56 @@ int idris_usleep(int usec) {
 void stackOverflow(void) {
   fprintf(stderr, "Stack overflow");
   exit(-1);
+}
+
+static inline VAL copy_plain(VM* vm, VAL x, size_t sz) {
+    VAL cl = iallocate(vm, sz, 1);
+    memcpy(cl, x, sz);
+    return cl;
+}
+
+VAL copy(VM* vm, VAL x) {
+    int ar;
+    VAL cl;
+    if (x==NULL) {
+        return x;
+    }
+    switch(GETTY(x)) {
+    case CT_INT: return x;
+    case CT_BITS32: return copy_plain(vm, x, sizeof(Bits32));
+    case CT_BITS64: return copy_plain(vm, x, sizeof(Bits64));
+    case CT_FLOAT: return copy_plain(vm, x, sizeof(Float));
+    case CT_FWD:
+        return GETPTR(x);
+    case CT_CDATA:
+        cl = copy_plain(vm, x, sizeof(CDataC));
+        c_heap_mark_item(GETCDATA(x));
+        break;
+    case CT_BIGINT:
+        cl = MKBIGMc(vm, GETMPZ(x));
+        break;
+    case CT_CON:
+        ar = CARITY(x);
+        if (ar == 0 && CTAG(x) < 256) {
+            return x;
+        }
+        // FALLTHROUGH
+    case CT_ARRAY:
+    case CT_STRING:
+    case CT_REF:
+    case CT_STROFFSET:
+    case CT_PTR:
+    case CT_MANAGEDPTR:
+    case CT_RAWDATA:
+        cl = copy_plain(vm, x, x->hdr.sz);
+        break;
+    default:
+        cl = NULL;
+        assert(0);
+        break;
+    }
+    assert(x->hdr.sz >= sizeof(Fwd));
+    SETTY(x, CT_FWD);
+    ((Fwd*)x)->fwd = cl;
+    return cl;
 }
