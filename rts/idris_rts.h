@@ -5,163 +5,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#ifdef HAS_PTHREAD
-#include <stdarg.h>
-#include <pthread.h>
-#endif
 
+#include "idris_rts_types.h"
 #include "idris_heap.h"
 #include "idris_stats.h"
-
-
-#ifndef EXIT_SUCCESS
-#define EXIT_SUCCESS 0
-#endif
-#ifndef EXIT_FAILURE
-#define EXIT_FAILURE 1
-#endif
-
-// Closures
-typedef enum {
-    CT_CON, CT_ARRAY, CT_INT, CT_BIGINT,
-    CT_FLOAT, CT_STRING, CT_STROFFSET, CT_BITS32,
-    CT_BITS64, CT_PTR, CT_REF, CT_FWD,
-    CT_MANAGEDPTR, CT_RAWDATA, CT_CDATA
-} ClosureType;
-
-typedef struct Hdr {
-    uint8_t ty;
-    uint8_t u8;
-    uint16_t u16;
-    uint32_t sz;
-} Hdr;
-
-typedef struct Val {
-    Hdr hdr;
-} Val;
-
-typedef struct Val * VAL;
-
-typedef struct Con {
-    Hdr hdr;
-    uint32_t tag;
-    VAL args[0];
-} Con;
-
-typedef struct Array {
-    Hdr hdr;
-    VAL array[0];
-} Array;
-
-typedef struct BigInt {
-    Hdr hdr;
-    char big[0];
-} BigInt;
-
-typedef struct Float {
-    Hdr hdr;
-    double f;
-} Float;
-
-typedef struct String {
-    Hdr hdr;
-    size_t slen;
-    char str[0];
-} String;
-
-typedef struct StrOffset {
-    Hdr hdr;
-    String * base;
-    size_t offset;
-} StrOffset;
-
-typedef struct Bits32 {
-    Hdr hdr;
-    uint32_t bits32;
-} Bits32;
-
-typedef struct Bits64 {
-    Hdr hdr;
-    uint64_t bits64;
-} Bits64;
-
-typedef struct Ptr {
-    Hdr hdr;
-    void * ptr;
-} Ptr;
-
-typedef struct Ref {
-    Hdr hdr;
-    VAL ref;
-} Ref;
-
-typedef struct Fwd {
-    Hdr hdr;
-    VAL fwd;
-} Fwd;
-
-typedef struct ManagedPtr {
-    Hdr hdr;
-    char mptr[0];
-} ManagedPtr;
-
-typedef struct RawData {
-    Hdr hdr;
-    char raw[0];
-} RawData;
-
-typedef struct CDataC {
-    Hdr hdr;
-    CHeapItem * item;
-} CDataC;
-
-struct VM;
-
-struct Msg_t {
-    struct VM* sender;
-    // An identifier to say which conversation this message is part of.
-    // Lowest bit is set if the id is the first message in a conversation.
-    int channel_id;
-    VAL msg;
-};
-
-typedef struct Msg_t Msg;
-
-struct VM {
-    int active; // 0 if no longer running; keep for message passing
-                // TODO: If we're going to have lots of concurrent threads,
-                // we really need to be cleverer than this!
-
-    VAL* valstack;
-    VAL* valstack_top;
-    VAL* valstack_base;
-    VAL* stack_max;
-
-    CHeap c_heap;
-    Heap heap;
-#ifdef HAS_PTHREAD
-    pthread_mutex_t inbox_lock;
-    pthread_mutex_t inbox_block;
-    pthread_mutex_t alloc_lock;
-    pthread_cond_t inbox_waiting;
-
-    Msg* inbox; // Block of memory for storing messages
-    Msg* inbox_end; // End of block of memory
-    int inbox_nextid; // Next channel id
-    Msg* inbox_write; // Location of next message to write
-
-    int processes; // Number of child processes
-    int max_threads; // maximum number of threads to run in parallel
-    struct VM* creator; // The VM that created this VM, NULL for root VM
-#endif
-    Stats stats;
-
-    VAL ret;
-    VAL reg1;
-};
-
-typedef struct VM VM;
-
 
 /* C data interface: allocation on the C heap.
  *
@@ -198,8 +45,6 @@ VM* init_vm(int stack_size, size_t heap_size,
 
 // Get the VM for the current thread
 VM* get_vm(void);
-// Initialise thread-local data for this VM
-void init_threaddata(VM *vm);
 // Clean up a VM once it's no longer needed
 Stats terminate(VM* vm);
 
@@ -208,12 +53,7 @@ Stats terminate(VM* vm);
 VM* idris_vm(void);
 void close_vm(VM* vm);
 
-// Set up key for thread-local data - called once from idris_main
-void init_threadkeys(void);
-
-// Functions all take a pointer to their VM, and previous stack base,
-// and return nothing.
-typedef void*(*func)(VM*, VAL*);
+void idris_gc_threaded(VM *vm);
 
 // Register access
 
@@ -399,36 +239,6 @@ void init_nullaries(void);
 
 void init_signals(void);
 
-void* vmThread(VM* callvm, func f, VAL arg);
-void* idris_stopThread(VM* vm);
-
-// Copy a structure to another vm's heap
-VAL copyTo(VM* newVM, VAL x);
-
-// Add a message to another VM's message queue
-int idris_sendMessage(VM* sender, int channel_id, VM* dest, VAL msg);
-// Check whether there are any messages in the queue and return PID of
-// sender if so (null if not)
-VM* idris_checkMessages(VM* vm);
-// Check whether there are any messages which are initiating a conversation
-// in the queue and return the message if so (without removing it)
-Msg* idris_checkInitMessages(VM* vm);
-// Check whether there are any messages in the queue
-VM* idris_checkMessagesFrom(VM* vm, int channel_id, VM* sender);
-// Check whether there are any messages in the queue, and wait if not
-VM* idris_checkMessagesTimeout(VM* vm, int timeout);
-// block until there is a message in the queue
-Msg* idris_recvMessage(VM* vm);
-// block until there is a message in the queue
-Msg* idris_recvMessageFrom(VM* vm, int channel_id, VM* sender);
-
-// Query/free structure used to return message data (recvMessage will malloc,
-// so needs an explicit free)
-VAL idris_getMsg(Msg* msg);
-VM* idris_getSender(Msg* msg);
-int idris_getChannel(Msg* msg);
-void idris_freeMsg(Msg* msg);
-
 void idris_trace(VM* vm, const char* func, int line);
 void dumpVal(VAL r);
 void dumpStack(VM* vm);
@@ -533,7 +343,7 @@ static inline size_t aligned(size_t sz) {
     return (sz + sizeof(void*) - 1) & ~(sizeof(void*)-1);
 }
 
-VM* get_vm(void);
+VAL copy(VM* vm, VAL x);
 
 #endif
 
