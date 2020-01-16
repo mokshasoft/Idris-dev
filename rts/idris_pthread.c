@@ -66,6 +66,7 @@ VMPthread* alloc_vm_pthread
 
     pt->max_threads = max_threads;
     pt->processes = 0;
+    pt->creator = NULL;
     return pt;
 }
 
@@ -77,6 +78,9 @@ void free_vm_threaded(struct VM *vm)
     pthread_mutex_destroy(&(pt->inbox_block));
     pthread_mutex_destroy(&(pt->alloc_lock));
     pthread_cond_destroy(&(pt->inbox_waiting));
+    if (pt->creator != NULL) {
+        pt->creator->processes--;
+    }
     free(pt);
 }
 

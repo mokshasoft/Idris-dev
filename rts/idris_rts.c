@@ -45,7 +45,6 @@ VM* init_vm(int stack_size, size_t heap_size,
     vm->reg1 = NULL;
 #ifdef HAS_PTHREAD
     vm->pthread = alloc_vm_pthread(vm, max_threads);
-    vm->creator = NULL;
 #else
     init_vm_single(vm);
 #endif
@@ -88,10 +87,6 @@ Stats terminate(VM* vm) {
     free_heap(&(vm->heap));
     c_heap_destroy(&(vm->c_heap));
     free_vm_threaded(vm);
-    free(vm->inbox);
-    if (vm->creator != NULL) {
-        vm->creator->processes--;
-    }
     // free(vm);
     // Set the VM as inactive, so that if any message gets sent to it
     // it will not get there, rather than crash the entire system.

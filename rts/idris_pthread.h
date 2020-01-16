@@ -36,6 +36,7 @@ struct VMPthread_t {
 
     int processes; // Number of child processes
     int max_threads; // maximum number of threads to run in parallel
+    struct VMPthread_t* creator; // The VM that created this VM, NULL for root VM
 };
 
 typedef struct VMPthread_t VMPthread;
