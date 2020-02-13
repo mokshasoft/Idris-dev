@@ -99,6 +99,7 @@ Extra-source-files:
                       libs/effects/Makefile
                       libs/prelude/Makefile
                       libs/pruviloj/Makefile
+                      libs/freertos/Makefile
 
                       scripts/generate-multi-ghc-travis-template
                       scripts/runidris
