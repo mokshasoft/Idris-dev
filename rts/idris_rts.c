@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #include "itoa.h"
+#include "ftoa.h"
 #include "idris_rts.h"
 #include "idris_gc.h"
 #include "idris_utf8.h"
@@ -576,7 +577,8 @@ VAL idris_castStrInt(VM* vm, VAL i) {
 
 VAL idris_castFloatStr(VM* vm, VAL i) {
     String * cl = allocStr(vm, 32, 0);
-    cl->slen = snprintf(cl->str, 32, "%.16g", GETFLOAT(i));
+    cl->slen = ftoa_prec_f0(cl->str, GETFLOAT(i));
+    cl->str[cl->slen] = '\n';
     return (VAL)cl;
 }
 

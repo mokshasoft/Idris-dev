@@ -11,6 +11,7 @@ file(GLOB static
     rts/idris_utf8.c
     rts/mini-gmp.c
     rts/itoa.c
+    rts/ftoa.c
     rts/bare-metal/idris_main.c
 )
 
