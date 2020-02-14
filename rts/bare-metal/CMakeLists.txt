@@ -10,6 +10,7 @@ file(GLOB static
     rts/idris_bitstring.c
     rts/idris_utf8.c
     rts/mini-gmp.c
+    rts/itoa.c
     rts/bare-metal/idris_main.c
 )
 
