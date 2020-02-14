@@ -82,7 +82,7 @@ VM* init_vm(int stack_size, size_t heap_size,
     global_vm = vm;
 #endif
 
-#if IS_THREADED
+#ifdef IS_THREADED
     vm->max_threads = max_threads;
     vm->processes = 0;
     vm->creator = NULL;
@@ -1203,6 +1203,10 @@ VAL idris_queueGet(VM* vm, QueueHandle_t xQueue) {
     return doCopyTo(vm, msg);
 }
 #endif // HAS_FREERTOS
+
+int isNull(void* ptr) {
+    return ptr==NULL;
+}
 
 int idris_errno(void) {
     return errno;
