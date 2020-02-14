@@ -1252,11 +1252,15 @@ const char* idris_getArg(int i) {
 }
 
 void idris_disableBuffering(void) {
-  setvbuf(stdin, NULL, _IONBF, 0);
-  setvbuf(stdout, NULL, _IONBF, 0);
+#ifndef BARE_METAL
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif // BARE_METAL
 }
 
 void stackOverflow(void) {
-  fprintf(stderr, "Stack overflow");
-  exit(-1);
+#ifndef BARE_METAL
+    fprintf(stderr, "Stack overflow");
+    exit(-1);
+#endif // BARE_METAL
 }
